@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="30100">
+        <setting label="30101" type="lsep" />
+        <setting label="30102" type="bool" id="gist_quickfix" default="true" />
+        <setting label="30103" type="text" id="gist_hash"     default=""      enable="eq(-1,true)" />
+        <setting label="30111" type="lsep" />
+        <setting label="30112" type="bool" id="gist_notify"   default="false" enable="eq(-3,true)" />
+    </category>
+    <category label="30200">
+        <setting label="30201" type="lsep" />
+        <setting label="30202" type="enum" id="hs_show" default="1"    values="Off|Password|On" />
+        <setting label="30203" type="text" id="hs_pass" default="1234" enable="eq(-1,1)"        option="hidden" />
+    </category>
+    <category label="30300">
+        <setting label="30301" type="lsep" />
+        <setting label="30302" type="enum" id="youtube_dl_max_quality" default="1" values="SD|720p|1080p" />
+    </category>
+</settings>
