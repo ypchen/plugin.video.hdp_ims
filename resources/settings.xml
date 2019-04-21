@@ -2,10 +2,11 @@
 <settings>
     <category label="30100">
         <setting label="30101" type="lsep" />
-        <setting label="30102" type="bool" id="gist_quickfix" default="true" />
-        <setting label="30103" type="text" id="gist_hash"     default=""      enable="eq(-1,true)" />
+        <setting label="30102" type="bool" id="gist_quickfix"       default="true" />
+        <setting label="30103" type="text" id="gist_hash"           default=""         enable="eq(-1,true)" />
+        <setting label="30104" type="text" id="gist_valid_duration" default="259200.0" enable="eq(-2,true)" />
         <setting label="30111" type="lsep" />
-        <setting label="30112" type="bool" id="gist_notify"   default="false" enable="eq(-3,true)" />
+        <setting label="30112" type="bool" id="gist_notify"         default="false"    enable="eq(-4,true)" />
     </category>
     <category label="30200">
         <setting label="30201" type="lsep" />

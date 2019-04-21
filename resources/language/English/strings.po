@@ -24,6 +24,10 @@ msgctxt "#30103"
 msgid "Hash"
 msgstr ""
 
+msgctxt "#30104"
+msgid "Valid duration (seconds)"
+msgstr ""
+
 msgctxt "#30111"
 msgid "Notification on screen (mainly for debugging)"
 msgstr ""
