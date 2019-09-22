@@ -28,7 +28,7 @@ import collections
 # ----- Version Information -----
 # Hard coded the quickfix gist hash corresponding to each addon version
 version_gist_hash = {
-    '1.18.0': '46c0cd04c2287f0ec449e883a72cef48'
+    '1.18.1': '3312e9f0ee2e9268d849057364c7fa9f'
 }
 def my_version ():
     return xbmcaddon.Addon().getAddonInfo('version')
@@ -248,6 +248,10 @@ def list_items (params):
 
 # ----- sites -----
 # -- maplestage --
+def inc(int_array, by = 1000):
+    int_array[0] += by
+    return (int_array[0])
+
 def maplestage_api (data):
     endpoint = 'http://maplestage.com/v1/query'
     headers = {
@@ -439,71 +443,232 @@ def maplestage_videos (params):
             items.append({'title': title, 'link': link, 'vid': vid, 'image': image, 'isFolder': False, 'IsPlayable': 'True'})
     return items
 
-def maplestage_html (params):
-    link = params['link']
-    xbmc.log('[%s] %s' % ('hdp_ims', 'html: link={' + link + '}'), xbmc.LOGNOTICE)
-    if ((-1) != link.find('rapidvideo')):
-        if ((-1) != link.find('?')):
-            connector = '&'
-        else:
-            connector = '?'
-        resolutionAttempts = [connector+'q=720p', connector+'q=480p', '']
-        for resAtt in resolutionAttempts:
-            xbmc.log('[%s] %s' % ('hdp_ims', 'resAtt={' + resAtt + '}'), xbmc.LOGNOTICE)
-            html = get_link_contents(link + resAtt)
-            if ('' == html):
-                return []
-            if ((-1) != html.find('source src="')):
-                break
-        # It may still fail after the listed attempts
-        link = str_between(html, 'source src="', '"')
-        xbmc.log('[%s] %s' % ('hdp_ims', 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
-        playitem = xbmcgui.ListItem(path=link)
-        xbmcplugin.setResolvedUrl(addon_handle, True, playitem)
-    elif ((-1) != link.find('meeu.net')):
-        if ((-1) == link.find('http:')):
-            link = 'http:' + link
-        xbmc.log('[%s] %s' % ('hdp_ims', 'get: link={' + link + '}'), xbmc.LOGNOTICE)
-        html = get_link_contents(link)
-        if ('' == html):
-            return []
-        link = re.sub(r".+\|([0-9a-z]{100,240})\|.+", "\g<1>", html)
-        if ('' == link):
-            return []
-        link = 'http://meeu.net/player?url=' + link
-        xbmc.log('[%s] %s' % ('hdp_ims', 'get: link={' + link + '}'), xbmc.LOGNOTICE)
-        html = get_link_contents(link)
-        if ('' == html):
-            return []
-        link = 'http://meeu.net' + str_between(html, 'source src="', '"')
-        xbmc.log('[%s] %s' % ('hdp_ims', 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
-        playitem = xbmcgui.ListItem(path=link)
-        xbmcplugin.setResolvedUrl(addon_handle, True, playitem)
-    elif ((-1) != link.find('ddppnew')):
-        xbmc.log('[%s] %s' % ('hdp_ims', 'get: link={' + link + '}'), xbmc.LOGNOTICE)
-        html = get_link_contents(link)
-        if ('' == html):
-            return []
-        redirecturl = str_between(html, 'var redirecturl = "', '"')
-        main = str_between(html, 'var main = "', '"')
-        link = redirecturl + main
-        xbmc.log('[%s] %s' % ('hdp_ims', 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+
+def maplestage_html_verystream_check (link):
+    return ((-1) != link.find('verystream.com'))
+
+def maplestage_html_verystream_exec (ifcase, link):
+    provider = 'verystream'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    if ((-1) == link.find('http:')) and ((-1) == link.find('https:')) and ((-1) != link.find('//')):
+        # E.g., link={//verystream.com/e/GYSotz7JcJi}
+        link = 'https:' + link
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    link = 'https://verystream.com/gettoken/' + str_between(html, 'id="videolink">', '<') + '?mime=true'
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    return playitem
+
+def maplestage_html_player_check (link):
+    return ((-1) == link.find('http:')) and ((-1) == link.find('https:')) and ((-1) != link.find('//')) and ((-1) != link.find('/player/'))
+
+def maplestage_html_player_exec (ifcase, link):
+    provider = 'player'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    # E.g., link={//p.tiktak.tv/player/a0d08faa956f6b71}
+    link = 'https:' + link
+    urlHost = str_between(link, '://', '/')
+    urlPrefix = 'https://' + urlHost
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    link = re.sub(r".+\|([0-9a-z]{100,240})\|.+", "\g<1>", html)
+    if ('' == link):
+        return []
+    link = urlPrefix + '/player?url=' + link
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    link = urlPrefix + str_between(html, 'source src="', '"')
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    return playitem
+
+def maplestage_html_rapidvideo_check (link):
+    return ((-1) != link.find('rapidvideo'))
+
+def maplestage_html_rapidvideo_exec (ifcase, link):
+    provider = 'rapidvideo'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    if ((-1) != link.find('?')):
+        connector = '&'
     else:
-        if (((-1) != link.find('baidu')) or ((-1) != link.find('ddppnew'))) and ((-1) != link.find('share')) and ((-1) == link.find('.m3u8')):
-            html = get_link_contents(link)
-            if ('' == html):
-                return []
-            parsed = urlparse.urlparse(link)
-            replaced = parsed._replace(path=str_between(html, 'var main = "', '"').strip())
-            link = replaced.geturl()
-            xbmc.log('[%s] %s' % ('hdp_ims', '+baidu+share-.m3u8: link={' + link + '}'), xbmc.LOGNOTICE)
-        xbmc.log('[%s] %s' % ('hdp_ims', 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
-        playitem = xbmcgui.ListItem(path=link)
-        playitem.setProperty('inputstreamaddon','inputstream.adaptive')
-        playitem.setProperty('inputstream.adaptive.manifest_type','hls')
-        playitem.setMimeType('application/vnd.apple.mpegurl')
-        playitem.setContentLookup(False)
-        xbmcplugin.setResolvedUrl(addon_handle, True, playitem)
+        connector = '?'
+    resolutionAttempts = [connector+'q=720p', connector+'q=480p', '']
+    for resAtt in resolutionAttempts:
+        inc(ifcase, 1)
+        xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'resAtt={' + resAtt + '}'), xbmc.LOGNOTICE)
+        html = get_link_contents(link + resAtt)
+        if ('' == html):
+            return []
+        if ((-1) != html.find('source src="')):
+            break
+    # It may still fail after the listed attempts
+    link = str_between(html, 'source src="', '"')
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    return playitem
+
+def maplestage_html_dmembed_check (link):
+    return ((-1) != link.find('dailymotion.com/embed'))
+
+def maplestage_html_dmembed_exec (ifcase, link):
+    provider = 'dmembed'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    if ((-1) == link.find('http:')) and ((-1) == link.find('https:')) and ((-1) != link.find('//')):
+        link = 'https:' + link
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    htmlToExplode = str_between(html, ',"owner":', ',"reporting":')
+    videos = htmlToExplode.split('}],')
+    prefRes = ['"720"', '"1080"', '"480"', '"380"', '"240"']
+    urlFound = False
+    for res in prefRes:
+        for video in videos:
+            if ((-1) != video.find(res)):
+                urlFound = True
+                link = str_between(video, '"type":"video\/mp4","url":"', '"')
+                link = link.replace('\/', '/')
+                inc(ifcase, 1)
+                xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '} @ ' + res), xbmc.LOGNOTICE)
+                break
+        if (True == urlFound):
+            break
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    return playitem
+
+def maplestage_html_ddppnew_check (link):
+    return ((-1) != link.find('ddppnew'))
+
+def maplestage_html_ddppnew_exec (ifcase, link):
+    provider = 'ddppnew'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    redirecturl = str_between(html, 'var redirecturl = "', '"')
+    main = str_between(html, 'var main = "', '"')
+    link = redirecturl + main
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    return playitem
+
+def maplestage_html_share_Nom3u8_check (link):
+    return ((-1) != link.find('/share/')) and ((-1) == link.find('.m3u8'))
+
+def maplestage_html_share_Nom3u8_exec (ifcase, link):
+    provider = '+share-.m3u8'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link)
+    if ('' == html):
+        return []
+    parsed = urlparse.urlparse(link)
+    replaced = parsed._replace(path=str_between(html, 'var main = "', '"').strip())
+    link = replaced.geturl()
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    playitem.setProperty('inputstreamaddon','inputstream.adaptive')
+    playitem.setProperty('inputstream.adaptive.manifest_type','hls')
+    playitem.setMimeType('application/vnd.apple.mpegurl')
+    playitem.setContentLookup(False)
+    return playitem
+
+def maplestage_html_1drama_check (link):
+    return ((-1) == link.find('//')) and ((-1) == link.find('.'))
+
+def maplestage_html_1drama_exec (ifcase, link):
+    provider = '1drama'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'link={' + link + '}'), xbmc.LOGNOTICE)
+    # E.g., link={QTBBS1Q5RktNMUlsYUJkdTh6VWJLT2NBLXlvZ3JPbEdkNlBGUG42YXRIM1lfTVBTUkZ5UF9TNW52eTZRMDljal9LemFmUUVkb3FVdlJsOFRPOFdfYm5uc3FYNERzQzNwTnh2RGdPSklzSXlOekdUbFlxanpnSEVwaEEwamFXd24}
+    html = get_link_contents('http://1drama.com/m3u8/?ref=' + link, http_header={'Referer': 'http://maplestage.com/episode/'})
+    if ('' == html):
+        return []
+    link = str_between(str_between(html, 'var m3u8url =', 'var dp'), " '", "'")
+    inc(ifcase, 1)
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    playitem.setProperty('inputstreamaddon','inputstream.adaptive')
+    playitem.setProperty('inputstream.adaptive.manifest_type','hls')
+    playitem.setMimeType('application/vnd.apple.mpegurl')
+    playitem.setContentLookup(False)
+    return playitem
+
+def maplestage_html_default_check (link):
+    return True
+
+def maplestage_html_default_exec (ifcase, link):
+    provider = 'default'
+    xbmc.log('[%s, %d, %s] %s' % ('hdp_ims', ifcase[0], provider, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    playitem.setProperty('inputstreamaddon','inputstream.adaptive')
+    playitem.setProperty('inputstream.adaptive.manifest_type','hls')
+    playitem.setMimeType('application/vnd.apple.mpegurl')
+    playitem.setContentLookup(False)
+    return playitem
+
+html_providers = [
+    {
+        'check': maplestage_html_verystream_check,
+        'exec':  maplestage_html_verystream_exec
+    },
+    {
+        'check': maplestage_html_player_check,
+        'exec':  maplestage_html_player_exec
+    },
+    {
+        'check': maplestage_html_rapidvideo_check,
+        'exec':  maplestage_html_rapidvideo_exec
+    },
+    {
+        'check': maplestage_html_dmembed_check,
+        'exec':  maplestage_html_dmembed_exec
+    },
+    {
+        'check': maplestage_html_ddppnew_check,
+        'exec':  maplestage_html_ddppnew_exec
+    },
+    {
+        'check': maplestage_html_share_Nom3u8_check,
+        'exec':  maplestage_html_share_Nom3u8_exec
+    },
+    {
+        'check': maplestage_html_1drama_check,
+        'exec':  maplestage_html_1drama_exec
+    },
+    {
+        'check': maplestage_html_default_check,
+        'exec':  maplestage_html_default_exec
+    }
+]
+
+def maplestage_html (params):
+    ifcase = [0]
+    playitem = None
+    link = params['link']
+    if ((-1) != link.find('url=')):
+        # Mark the 'url=' process
+        inc(ifcase, 30000)
+        link = str_between(link, 'url=', "<>")
+    xbmc.log('[%s, %d] %s' % ('hdp_ims', ifcase[0], 'html: link={' + link + '}'), xbmc.LOGNOTICE)
+    for html_provider in html_providers:
+        if (0 < inc(ifcase)) and html_provider['check'](link):
+            playitem = html_provider['exec'](ifcase, link)
+            break
+    xbmcplugin.setResolvedUrl(addon_handle, True, playitem)
 # -- maplestage --
 
 # -- gimy --
@@ -529,25 +694,37 @@ def gimy_id ():
         }
     ]
 
+gimy_filter_URL_prefix = 'http://v.gimy.tv'
+gimy_filter_insert_all = '全部'
+gimy_filter_insert_at = '2018'
+gimy_filter_insert_this = '2019'
+gimy_filter_insert_pre = '-'
+gimy_filter_insert_post = '-'
+gimy_filter_str1 = '</ul>'
+gimy_filter_str2 = '<a '
+gimy_filter_str3 = '>'
+gimy_filter_str4 = '</a'
+gimy_filter_str5 = 'href="'
+gimy_filter_str6 = '"'
 def gimy_filter (params, url, explodeStart, nextCallback):
     html = get_link_contents(url)
     if ('' == html):
         return []
-    htmlToExplode = str_between(html, explodeStart, '</ul>')
-    videos = htmlToExplode.split('<a ')
+    htmlToExplode = str_between(html, explodeStart, gimy_filter_str1)
+    videos = htmlToExplode.split(gimy_filter_str2)
     videos.pop(0)
-    siteURLprefix = 'http://v.gimy.tv'
+    siteURLprefix = gimy_filter_URL_prefix
     items = []
     prevTitle = ''
     for video in videos:
-        title = str_between(video, '>', '</a').strip()
+        title = str_between(video, gimy_filter_str3, gimy_filter_str4).strip()
         # order asc
-        if ((prevTitle == '2018') and (title == '全部')):
-            items.append({'title': '2019', 'link': link.replace('-2018-', '-2019-'), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
-        link = siteURLprefix + str_between(video, 'href="', '"').strip()
+        if ((prevTitle == gimy_filter_insert_at) and (title == gimy_filter_insert_all)):
+            items.append({'title': gimy_filter_insert_this, 'link': link.replace(gimy_filter_insert_pre + gimy_filter_insert_at + gimy_filter_insert_post, gimy_filter_insert_pre + gimy_filter_insert_this + gimy_filter_insert_post), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
+        link = siteURLprefix + str_between(video, gimy_filter_str5, gimy_filter_str6).strip()
         # order desc
-        if ((prevTitle == '全部') and (title == '2018')):
-            items.append({'title': '2019', 'link': link.replace('-2018-', '-2019-'), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
+        if ((prevTitle == gimy_filter_insert_all) and (title == gimy_filter_insert_at)):
+            items.append({'title': gimy_filter_insert_this, 'link': link.replace(gimy_filter_insert_pre + gimy_filter_insert_at + gimy_filter_insert_post, gimy_filter_insert_pre + gimy_filter_insert_this + gimy_filter_insert_post), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
         items.append({'title': title, 'link': link, 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
         prevTitle = title
     return items
@@ -567,6 +744,39 @@ def gimy_drama_category (params):
 def gimy_movie_category (params):
     return gimy_filter (params, params['link'], '<span class="text-muted">按分類', 'gimy_area(params)')
 
+gimy_videos_str1 = '<div class="box-page'
+gimy_videos_str2 = 'iv>'
+gimy_videos_str3 = '<ul>'
+gimy_videos_str4 = '</d'
+gimy_videos_str5 = 'active"><span>'
+gimy_videos_str6 = '</span>'
+gimy_videos_str7 = '下一頁</a>'
+gimy_videos_str8 = '</ul>'
+gimy_videos_str9 = 'pagegbk" data="p-'
+gimy_videos_strA = '">尾頁</a>'
+gimy_videos_strB = '<div class="box-video-list">'
+gimy_videos_strC = '<div class="box-page'
+gimy_videos_strD = '<li '
+gimy_videos_strE = 'http://v.gimy.tv'
+gimy_videos_strF = '</li>'
+gimy_videos_strG = '上一頁'
+gimy_videos_strH = '">'
+gimy_videos_strI = '</a'
+gimy_videos_strJ = 'href="'
+gimy_videos_strK = '"'
+gimy_videos_strL = 'title="'
+gimy_videos_strM = '"'
+gimy_videos_strN = 'href="'
+gimy_videos_strO = '"'
+gimy_videos_strP = 'data-original="'
+gimy_videos_strQ = '"'
+gimy_videos_strR = 'note text-bg-r">'
+gimy_videos_strS = '</span>'
+gimy_videos_strT = '下一頁'
+gimy_videos_strU = '">'
+gimy_videos_strV = '</a'
+gimy_videos_strW = 'href="'
+gimy_videos_strX = '"'
 def gimy_videos (params):
     data = json.loads(base64.b64decode(params['data']), 'utf-8')
     try:
@@ -576,35 +786,36 @@ def gimy_videos (params):
     html = get_link_contents(params['link'])
     if ('' == html):
         return []
-    pageHtml = str_between(str_between(html, '<div class="box-page', 'iv>'), '<ul>', '</d')
+    pageHtml = str_between(str_between(html, gimy_videos_str1, gimy_videos_str2), gimy_videos_str3, gimy_videos_str4)
     pages = []
-    pages.append(str_between(pageHtml, 'active"><span>', '</span>'))
-    pages.append(str_between(str_between(pageHtml, '下一頁</a>', '</ul>'), 'pagegbk" data="p-', '">尾頁</a>'))
+    pages.append(str_between(pageHtml, gimy_videos_str5, gimy_videos_str6))
+    pages.append(str_between(str_between(pageHtml, gimy_videos_str7, gimy_videos_str8), gimy_videos_str9, gimy_videos_strA))
     if ('' == pages[1]):
         pages[1] = str(page)
-    htmlToExplode = str_between(html, '<div class="box-video-list">', '<div class="box-page')
-    videos = htmlToExplode.split('<li ')
+    htmlToExplode = str_between(html, gimy_videos_strB, gimy_videos_strC)
+    videos = htmlToExplode.split(gimy_videos_strD)
     videos.pop(0)
-    siteURLprefix = 'http://v.gimy.tv'
+    siteURLprefix = gimy_videos_strE
     items = []
     items.append({'title': '第 [COLOR limegreen]' + pages[0] + '[/COLOR] 頁/共 [COLOR limegreen]' + pages[1] + '[/COLOR] 頁', 'link': '', 'action': '', 'callback': '', 'isFolder': False})
-    pageBlocks = pageHtml.split('</li>')
+    pageBlocks = pageHtml.split(gimy_videos_strF)
     if (page > 1):
         for pageBlock in pageBlocks:
-            if ('上一頁' == str_between(pageBlock, '">', '</a').strip()):
-                link = siteURLprefix + str_between(pageBlock, 'href="', '"').strip()
+            if (gimy_videos_strG == str_between(pageBlock, gimy_videos_strH, gimy_videos_strI).strip()):
+                link = siteURLprefix + str_between(pageBlock, gimy_videos_strJ, gimy_videos_strK).strip()
                 items.append({'title': '上一頁 (回第' + str(page-1) + '頁)', 'link': link, 'action': 'list_items', 'callback': 'gimy_videos(params)', 'isFolder': True, 'page': (page-1)})
                 break
     for video in videos:
-        title = str_between(video, 'title="', '"').strip()
-        link = siteURLprefix + str_between(video, 'href="', '"').strip()
-        image = str_between(video, 'data-original="', '"').strip()
-        note = str_between(video, 'note text-bg-r">', '</span>').strip()
-        items.append({'title': title + ' -- ' + note, 'link': link, 'action': 'list_items', 'callback': 'gimy_sources(params)', 'isFolder': True, 'image': image})
+        title = str_between(video, gimy_videos_strL, gimy_videos_strM).strip()
+        if ('' != title):
+            link = siteURLprefix + str_between(video, gimy_videos_strN, gimy_videos_strO).strip()
+            image = str_between(video, gimy_videos_strP, gimy_videos_strQ).strip()
+            note = str_between(video, gimy_videos_strR, gimy_videos_strS).strip()
+            items.append({'title': title + ' -- ' + note, 'link': link, 'action': 'list_items', 'callback': 'gimy_sources(params)', 'isFolder': True, 'image': image})
     if (int(page) < int(pages[1])):
         for pageBlock in pageBlocks:
-            if ('下一頁' == str_between(pageBlock, '">', '</a').strip()):
-                link = siteURLprefix + str_between(pageBlock, 'href="', '"').strip()
+            if (gimy_videos_strT == str_between(pageBlock, gimy_videos_strU, gimy_videos_strV).strip()):
+                link = siteURLprefix + str_between(pageBlock, gimy_videos_strW, gimy_videos_strX).strip()
                 items.append({'title': '下一頁 (到第' + str(page+1) + '頁)', 'link': link, 'action': 'list_items', 'callback': 'gimy_videos(params)', 'isFolder': True, 'page': (page+1)})
                 break
     return items
@@ -696,40 +907,52 @@ def kubo_id ():
         }
     ]
 
+kubo_filter_URL_prefix = 'http://www.99kubo.tv'
+kubo_filter_insert_all = '全部'
+kubo_filter_insert_at = '2018'
+kubo_filter_insert_this = '2019'
+kubo_filter_insert_pre = '-year-'
+kubo_filter_insert_post = '-'
+kubo_filter_str1 = '</dl>'
+kubo_filter_str2 = '<a '
+kubo_filter_str3 = '>'
+kubo_filter_str4 = '</a'
+kubo_filter_str5 = 'href="'
+kubo_filter_str6 = '"'
 def kubo_filter (params, url, explodeStart, nextCallback):
     html = get_link_contents(url)
     if ('' == html):
         return []
-    htmlToExplode = str_between(html, explodeStart, '</dl>')
-    videos = htmlToExplode.split('<a ')
+    htmlToExplode = str_between(html, explodeStart, kubo_filter_str1)
+    videos = htmlToExplode.split(kubo_filter_str2)
     videos.pop(0)
-    siteURLprefix = 'http://www.99kubo.tv'
+    siteURLprefix = kubo_filter_URL_prefix
     items = []
     prevTitle = ''
     for video in videos:
-        title = str_between(video, '>', '</a').strip()
+        title = str_between(video, kubo_filter_str3, kubo_filter_str4).strip()
         # order asc
-        if ((prevTitle == '2018') and (title == '全部')):
-            items.append({'title': '2019', 'link': link.replace('-year-2018-', '-year-2019-'), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
-        link = siteURLprefix + str_between(video, 'href="', '"').strip()
+        if ((prevTitle == kubo_filter_insert_at) and (title == kubo_filter_insert_all)):
+            items.append({'title': kubo_filter_insert_this, 'link': link.replace(kubo_filter_insert_pre + kubo_filter_insert_at + kubo_filter_insert_post, kubo_filter_insert_pre + kubo_filter_insert_this + kubo_filter_insert_post), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
+        link = siteURLprefix + str_between(video, kubo_filter_str5, kubo_filter_str6).strip()
         # order desc
-        if ((prevTitle == '全部') and (title == '2018')):
-            items.append({'title': '2019', 'link': link.replace('-year-2018-', '-year-2019-'), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
+        if ((prevTitle == kubo_filter_insert_all) and (title == kubo_filter_insert_at)):
+            items.append({'title': kubo_filter_insert_this, 'link': link.replace(kubo_filter_insert_pre + kubo_filter_insert_at + kubo_filter_insert_post, kubo_filter_insert_pre + kubo_filter_insert_this + kubo_filter_insert_post), 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
         items.append({'title': title, 'link': link, 'action': 'list_items', 'callback': nextCallback, 'isFolder': True})
         prevTitle = title
     return items
 
 def kubo_cid (params):
-    return kubo_filter (params, params['link'], '<dl><dt>子分類', 'kubo_area(params)')
+    return kubo_filter (params, params['link'], '<dt>子分類', 'kubo_area(params)')
 
 def kubo_cid_skip_area (params):
-    return kubo_filter (params, params['link'], '<dl><dt>子分類', 'kubo_year(params)')
+    return kubo_filter (params, params['link'], '<dt>子分類', 'kubo_year(params)')
 
 def kubo_area (params):
-    return kubo_filter (params, params['link'], '<dl><dt>地區', 'kubo_year(params)')
+    return kubo_filter (params, params['link'], '<dt>地區', 'kubo_year(params)')
 
 def kubo_year (params):
-    return kubo_filter (params, params['link'], '<dl><dt>年份', 'kubo_videos(params)')
+    return kubo_filter (params, params['link'], '<dt>年份', 'kubo_videos(params)')
 
 kubo_order_description = {
     'vod_addtime': '更新時間',
@@ -782,47 +1005,50 @@ def kubo_videos (params):
         items.append({'title': '下一頁 (到第' + str(page+1) + '頁)', 'link': params['link'], 'action': 'list_items', 'callback': 'kubo_videos(params)', 'isFolder': True, 'page': (page+1)})
     return items
 
+kubo_episodes_URL_prefix = 'http://www.99kubo.tv'
+kubo_episodes_str1 = '<div class="hideCont"'
+kubo_episodes_str2 = '</ul>'
+kubo_episodes_str3 = '<li>'
+kubo_episodes_str4 = '">'
+kubo_episodes_str5 = '</a>'
+kubo_episodes_str6 = 'href="'
+kubo_episodes_str7 = '"'
 def kubo_episodes (params):
     html = get_link_contents(params['link'])
     if ('' == html):
         return []
-    htmlToExplode = str_between(html, '<td class="flvtd"', '</ul>')
-    videos = htmlToExplode.split('<li>')
+    htmlToExplode = str_between(html, kubo_episodes_str1, kubo_episodes_str2)
+    videos = htmlToExplode.split(kubo_episodes_str3)
     videos.pop(0)
     items = []
     for video in videos:
-        title = str_between(video, '">', '</a>').strip()
-        link = str_between(video, 'href="', '"').strip()
-        video_id = str_between(link, '-id-', '-').strip()
-        episode_id = str_between(link, '-pid-', '-').strip()
-        link = build_url_dict({'action': 'kubo_episode', 'vid': video_id, 'pid': episode_id})
+        title = str_between(video, kubo_episodes_str4, kubo_episodes_str5).strip()
+        link = kubo_episodes_URL_prefix + str_between(video, kubo_episodes_str6, kubo_episodes_str7).strip()
+        link = build_url_dict({'action': 'kubo_episode', 'link': link})
         items.append({'title': title, 'link': link, 'isFolder': False, 'IsPlayable': 'True'})
     return items
 
+kubo_episode_str1 = 'ff_urls='
+kubo_episode_str2 = '"Data'
+kubo_episode_str3 = 'https'
+kubo_episode_str4 = '.m3u8'
 def kubo_episode (params):
-    vid = params['vid']
-    pid = params['pid']
-    link = 'http://www.99tw.net/redirect?mode=xplay&id={0}&pid={1}'.format(vid, pid)
-    # a 302 redirect here
-    link = get_link_contents(link, url_redir=True)
+    name = 'kubo_episode()'
+    link = params['link']
     html = get_link_contents(link)
+    xbmc.log('[%s] %s' % (name, 'input: link={' + link + '}'), xbmc.LOGNOTICE)
     if ('' == html):
         return []
-    htmlToExplode = str_between(html, 'var videoDetail = ', ';')
-    videos = htmlToExplode.split('{')
-    videos.pop(0)
-    items = {}
-    for video in videos:
-        bps = str_between(video, "bps: '", "'")
-        src = str_between(video, "src: '", "'")
-        items[bps] = src
-    # seems that 720P is actually 360P for 99KUBO
-    bpsPref = ['1080P', '480P', '720P', '360P']
-    for bps in bpsPref:
-        if bps in items:
-            link = items[bps]
-            break
+    htmlToExplode = str_between(html, kubo_episode_str1, kubo_episode_str2)
+    link = kubo_episode_str3 + str_between(htmlToExplode, kubo_episode_str3, kubo_episode_str4).strip() + kubo_episode_str4
+    link = link.replace('\/', '/')
     playitem = xbmcgui.ListItem(path=link)
+    xbmc.log('[%s] %s' % (name, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
+    playitem = xbmcgui.ListItem(path=link)
+    playitem.setProperty('inputstreamaddon','inputstream.adaptive')
+    playitem.setProperty('inputstream.adaptive.manifest_type','hls')
+    playitem.setMimeType('application/vnd.apple.mpegurl')
+    playitem.setContentLookup(False)
     xbmcplugin.setResolvedUrl(addon_handle, True, playitem)
 # -- kubo --
 

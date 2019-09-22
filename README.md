@@ -15,6 +15,9 @@
 
 ## Release notes
 
+#### v1.18.1
+    * Integrated the accumulated gist quickfixes
+
 #### v1.18.0: Modified compatible with Kodi v18 (Leia)
     * Made workable on multiple platforms
         - LibreELEC (tested on Raspberry Pi 3B)
