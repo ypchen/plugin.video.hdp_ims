@@ -15,6 +15,12 @@
 
 ## Release notes
 
+#### v1.18.2
+    * Integrated the accumulated gist quickfixes (1.18.1-gist-r10)
+        - Fixed kubo
+        - Added gimy.tv & gimy.cc
+        - Removed maplestage & aibuka
+
 #### v1.18.1
     * Integrated the accumulated gist quickfixes
 
