@@ -17,4 +17,8 @@
         <setting label="30301" type="lsep" />
         <setting label="30302" type="enum" id="youtube_dl_max_quality" default="1" values="SD|720p|1080p" />
     </category>
+    <category label="30400">
+        <setting label="30401" type="lsep" />
+        <setting label="30402" type="text" id="curl"                 default="/usr/bin/curl" />
+    </category>
 </settings>

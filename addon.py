@@ -28,7 +28,7 @@ import collections
 # ----- Version Information -----
 # Hard coded the quickfix gist hash corresponding to each addon version
 version_gist_hash = {
-    '1.18.2': 'ebb973eae84b4001ebe82229164610ea'
+    '1.18.3': 'a056ebf6ae5c46b2989a549f62702e3c'
 }
 def my_version ():
     return xbmcaddon.Addon().getAddonInfo('version')
@@ -45,7 +45,10 @@ def str_between (s, start, end):
     else:
         return s[pos1:pos2]
 
+# Fallback to curl
 def get_link_contents (url, data_to_post=None, http_header=None, user_agent=None, url_redir=False):
+    name = 'get_link_contents()'
+    #xbmc.log('[%s] %s' % (name, 'url={' + url + '}'), xbmc.LOGNOTICE)
     contents = ''
     if data_to_post is None:
         request = urllib2.Request(url)
@@ -58,18 +61,43 @@ def get_link_contents (url, data_to_post=None, http_header=None, user_agent=None
         for key, val in http_header.iteritems():
             request.add_header(key, val)
     try:
+        #xbmc.log('[%s] %s' % (name, 'before -- response = urllib2.urlopen(request)'), xbmc.LOGNOTICE)
         response = urllib2.urlopen(request)
+        #xbmc.log('[%s] %s' % (name, 'response.code={' + str(response.getcode()) + '}'), xbmc.LOGNOTICE)
         if (200 == response.getcode()):
             if (url_redir):
                 # not sure why 200 (should be 302 here)
                 url_redir = response.geturl()
             else:
                 contents = response.read()
+    #except urllib2.HTTPError, e:
+        #xbmc.log('[%s] %s' % (name, 'HTTPError={' + str(e.code) + '}'), xbmc.LOGNOTICE)
+    #except urllib2.URLError, e:
+        #xbmc.log('[%s] %s' % (name, 'URLError={' + str(e.reason) + '}'), xbmc.LOGNOTICE)
+    #except httplib.HTTPException, e:
+        #xbmc.log('[%s] %s' % (name, 'HTTPException'), xbmc.LOGNOTICE)
+    #except Exception as e:
+        #xbmc.log('[%s] %s' % (name, 'e={' + str(e) + '}'), xbmc.LOGNOTICE)
     finally:
+        #xbmc.log('[%s] %s' % (name, 'finally'), xbmc.LOGNOTICE)
         if (url_redir):
             return url_redir
         else:
-            return contents
+            if (0 < len(contents)):
+                #xbmc.log('[%s] %s' % (name, 'finally -- if (0 < len(contents))'), xbmc.LOGNOTICE)
+                return contents
+            else:
+                # a very bad plan B
+                #xbmc.log('[%s] %s' % (name, 'finally -- if (0 >= len(contents))'), xbmc.LOGNOTICE)
+                import subprocess
+                prog_curl = ''
+                if not addon.getSetting('curl'):
+                    prog_curl = '/usr/bin/curl'
+                    xbmc.log('[%s] %s' % (name, 'if not addon.getSetting(curl): [' + prog_curl + ']'), xbmc.LOGNOTICE)
+                else:
+                    prog_curl = addon.getSetting('curl')
+                    xbmc.log('[%s] %s' % (name, 'else (getSetting(curl) ok): [' + prog_curl + ']'), xbmc.LOGNOTICE)
+                return subprocess.check_output([prog_curl, '--output', '-', url])
 
 def show_notification (notify, exec_command):
     if ('true' == notify):
@@ -329,8 +357,8 @@ def kubo_id ():
 
 kubo_filter_URL_prefix = 'http://www.99kubo.tv'
 kubo_filter_insert_all = '全部'
-kubo_filter_insert_at = '2018'
-kubo_filter_insert_this = '2019'
+kubo_filter_insert_at = '2020'
+kubo_filter_insert_this = '2021'
 kubo_filter_insert_pre = '-year-'
 kubo_filter_insert_post = '-'
 kubo_filter_str1 = '</dl>'
@@ -456,9 +484,9 @@ kubo_episode_str3 = 'http'
 kubo_episode_str4 = '.m3u8'
 def kubo_episode (params):
     name = 'kubo_episode()'
-    link = params['link']
-    html = get_link_contents(link)
-    xbmc.log('[%s] %s' % (name, 'input: link={' + link + '}'), xbmc.LOGNOTICE)
+    link_orig = params['link']
+    xbmc.log('[%s] %s' % (name, 'input: link={' + link_orig + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link_orig)
     if ('' == html):
         return []
     htmlToExplode = str_between(html, kubo_episode_str1, kubo_episode_str2)
@@ -695,11 +723,15 @@ def gimytv_episodes (params):
     return []
 
 def gimytv_episode (params):
-    html = get_link_contents(params['link'])
+    name = 'gimytv_episode()'
+    link_orig = params['link']
+    xbmc.log('[%s] %s' % (name, 'input: link={' + link_orig + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link_orig)
     if ('' == html):
         return []
     htmlToExplode = str_between(html, 'player_data=', '</script>')
     link = str_between(htmlToExplode, '"url":"', '"').replace('\\/', '/')
+    xbmc.log('[%s] %s' % (name, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
     playitem = xbmcgui.ListItem(path=link)
     playitem.setProperty('inputstreamaddon','inputstream.adaptive')
     playitem.setProperty('inputstream.adaptive.manifest_type','hls')
@@ -891,20 +923,32 @@ def gimycc_episodes (params):
         items.append({'title': title, 'link': link, 'isFolder': False, 'IsPlayable': 'True'})
     return items
 
-gimycc_episode_url_code_dict = {'JT':'', 'JC':'+', 'JD':',', 'JE':'-', 'JF':'.', 'JG':'/', 'Mw':'0', 'Mx':'1', 'My':'2', 'Mz':'3', 'M0':'4', 'M1':'5', 'M2':'6', 'M3':'7', 'M4':'8', 'M5':'9', 'NB':':', 'NC':';', 'ND':'<', 'NE':'=', 'NF':'>', 'NG':'?', 'VC':'[', 'VD':'\\', 'VE':']', 'VF':'^', 'VG':'_', 'Yx':'a', 'Yy':'b', 'Yz':'c', 'Y0':'d', 'Y1':'e', 'Y2':'f', 'Y3':'g', 'Y4':'h', 'Y5':'i', 'ZB':'j', 'ZC':'k', 'ZD':'l', 'ZE':'m', 'ZF':'n', 'ZG':'o', 'cw':'p', 'cx':'q', 'cy':'r', 'cz':'s', 'c0':'t', 'c1':'u', 'c2':'v', 'c3':'w', 'c4':'x', 'c5':'y', 'dB':'z'}
+# Unknown: JB, Qw
+gimycc_episode_url_code_dict = {'JT':'', 'JC':'+', 'JD':',', 'JE':'-', 'JF':'.', 'JG':'/', 'Mw':'0', 'Mx':'1', 'My':'2', 'Mz':'3', 'M0':'4', 'M1':'5', 'M2':'6', 'M3':'7', 'M4':'8', 'M5':'9', 'NB':':', 'NC':';', 'ND':'<', 'NE':'=', 'NF':'>', 'NG':'?', 'VC':'[', 'VD':'\\', 'VE':']', 'VF':'^', 'VG':'_', 'Yx':'a', 'Yy':'b', 'Yz':'c', 'Y0':'d', 'Y1':'e', 'Y2':'f', 'Y3':'g', 'Y4':'h', 'Y5':'i', 'ZB':'j', 'ZC':'k', 'ZD':'l', 'ZE':'m', 'ZF':'n', 'ZG':'o', 'cw':'p', 'cx':'q', 'cy':'r', 'cz':'s', 'c0':'t', 'c1':'u', 'c2':'v', 'c3':'w', 'c4':'x', 'c5':'y', 'dB':'z', 'Qx':'A', 'Qy':'B', 'Qz':'C', 'Q0':'D', 'Q1':'E', 'Q2':'F', 'Q3':'G', 'Q4':'H', 'Q5':'I', 'RB':'J', 'RC':'K', 'RD':'L', 'RE':'M', 'RF':'N', 'RG':'O', 'Uw':'P', 'Ux':'Q', 'Uy':'R', 'Uz':'S', 'U0':'T', 'U1':'U', 'U2':'V', 'U3':'W', 'U4':'X', 'U5':'Y', 'VB':'Z'}
 
 def gimycc_episode (params):
-    html = get_link_contents(params['link'])
+    name = 'gimycc_episode()'
+    link_orig = params['link']
+    xbmc.log('[%s] %s' % (name, 'input: link={' + link_orig + '}'), xbmc.LOGNOTICE)
+    html = get_link_contents(link_orig)
     if ('' == html):
         return []
     htmlToExplode = str_between(html, 'player_data={', '</script>')
 # https://stackoverflow.com/questions/9475241/split-string-every-nth-character
     link = ''
     line = str_between(htmlToExplode, '"url":"', '"')
+    exception_num = 0
     n = 2
     lineSplit = [line[i:i+n] for i in range(0, len(line), n)]
     for s in lineSplit:
-        link = link + gimycc_episode_url_code_dict[s]
+        try:
+            link = link + gimycc_episode_url_code_dict[s]
+        except KeyError:
+            link = link + '?'+s+'#'
+            exception_num += 1
+    if (0 < exception_num):
+        xbmc.log('[%s] %s' % (name, 'if (0 < exception_num): [' + link_orig + '#%#' + link + ']'), xbmc.LOGERROR)
+    xbmc.log('[%s] %s' % (name, 'playing: link={' + link + '}'), xbmc.LOGNOTICE)
     playitem = xbmcgui.ListItem(path=link)
     playitem.setProperty('inputstreamaddon','inputstream.adaptive')
     playitem.setProperty('inputstream.adaptive.manifest_type','hls')

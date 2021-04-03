@@ -15,6 +15,12 @@
 
 ## Release notes
 
+#### v1.18.3
+    * Integrated the accumulated gist quickfixes (1.18.2-gist-r9)
+        - Added kubo year 2021
+        - Made the gimy.cc URL decoding mechanism better
+        - Fixed get_link_contents() with fallback to curl
+
 #### v1.18.2
     * Integrated the accumulated gist quickfixes (1.18.1-gist-r10)
         - Fixed kubo
