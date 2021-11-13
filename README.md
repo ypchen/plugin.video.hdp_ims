@@ -15,6 +15,10 @@
 
 ## Release notes
 
+#### v1.18.4
+    * Integrated the accumulated gist quickfixes (1.18.3-gist-r8)
+        - Lots of miscellaneous changes & updates
+
 #### v1.18.3
     * Integrated the accumulated gist quickfixes (1.18.2-gist-r9)
         - Added kubo year 2021
